@@ -69,6 +69,8 @@ services:
 volumes:
   papelyt-odoo-web-data:
   papelyt-odoo-db-data:
+  papelyt-odoo-config:
+  papelyt-odoo-addons:
 
 
 secrets:
