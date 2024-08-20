@@ -1,0 +1,75 @@
+version: '3.1'
+services:
+  odoo-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - db
+    # ports:
+    #   - "8071:8069" # Puerto principal de Odoo
+    #   - "8072:8072" # Puerto para el servicio de websockets/long polling
+    volumes:
+      - papelyt-odoo-web-data:/var/lib/odoo
+      - ./config:/etc/odoo
+      - ./addons:/mnt/extra-addons
+    environment:
+      - PASSWORD_FILE=/run/secrets/postgresql_password
+    secrets:
+      - postgresql_password
+    labels:
+      ## configuracion general, agregar network donde se instaló traefik (network=easypanel)
+      - traefik.enable=true
+      - traefik.docker.network=easypanel
+
+      ## ruta http para url: papelyt.com
+      - traefik.http.routers.http-papelyt-odoo.entrypoints=http
+      - traefik.http.routers.http-papelyt-odoo.rule=Host(`papelyt.com`) && PathPrefix(`/`)
+      - traefik.http.routers.http-papelyt-odoo.service=papelyt-odoo-service
+
+      ## ruta https para url: papelyt.com
+      - traefik.http.routers.https-papelyt-odoo.entrypoints=https
+      - traefik.http.routers.https-papelyt-odoo.rule=Host(`papelyt.com`) && PathPrefix(`/`)
+      - traefik.http.routers.https-papelyt-odoo.service=papelyt-odoo-service
+      - traefik.http.routers.https-papelyt-odoo.tls.certresolver=letsencrypt
+
+      ## servicio papelyt-odoo-service para url: papelyt.com
+      - traefik.http.services.papelyt-odoo-service.loadbalancer.server.port=8069
+      - traefik.http.services.papelyt-odoo-service.loadbalancer.passHostHeader=true
+      # - traefik.http.services.papelyt-odoo-service.loadbalancer.server.scheme=http
+
+      ## configuración de websockets para longpolling de odoo:
+      - traefik.http.services.odoo-websocket-service.loadbalancer.server.port=8072
+      - traefik.http.services.odoo-websocket-service.loadbalancer.passHostHeader="true"
+
+      - traefik.http.routers.http-odoo-websocket.entrypoints=http
+      - traefik.http.routers.http-odoo-websocket.service=odoo-websocket-service
+      - traefik.http.routers.http-odoo-websocket.rule="Host(`papelyt.com`) && PathPrefix(`/websocket`)"
+
+      - traefik.http.routers.https-odoo-websocket.entryPoints=https
+      - traefik.http.routers.https-odoo-websocket.service=odoo-websocket-service
+      - traefik.http.routers.https-odoo-websocket.rule="Host(`papelyt.com`) && PathPrefix(`/websocket`)"
+      - traefik.http.routers.https-odoo-websocket.tls.certresolver="letsencrypt"
+
+  odoo-db:
+    image: postgres:16.2
+    environment:
+      - POSTGRES_DB=postgres
+      - POSTGRES_PASSWORD_FILE=/run/secrets/postgresql_password
+      - POSTGRES_USER=odoo
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - papelyt-odoo-db-data:/var/lib/postgresql/data/pgdata
+    secrets:
+      - postgresql_password
+    # ports:
+    #   - "5441:5432"
+
+volumes:
+  papelyt-odoo-web-data:
+  papelyt-odoo-db-data:
+
+
+secrets:
+  postgresql_password:
+    file: odoo_pg_pass
