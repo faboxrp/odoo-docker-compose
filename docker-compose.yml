@@ -9,7 +9,7 @@ services:
       - POSTGRES_USER=odoo
       - PGDATA=/var/lib/postgresql/data/pgdata
     volumes:
-      - papelyt-odoo-db-data:/var/lib/postgresql/data/pgdata
+      - odoo-db-data:/var/lib/postgresql/data/pgdata
     secrets:
       - postgresql_password
     # ports:
@@ -25,11 +25,15 @@ services:
     #   - "8071:8069" # Puerto principal de Odoo
     #   - "8072:8072" # Puerto para el servicio de websockets/long polling
     volumes:
-      - papelyt-odoo-web-data:/var/lib/odoo
-      - papelyt-odoo-config:/etc/odoo
-      - papelyt-odoo-addons:/mnt/extra-addons
+      - odoo-web-data:/var/lib/odoo
+      - ./config:/etc/odoo
+      - ./addons:/mnt/extra-addons
     environment:
+      - HOST=odoo-db
+      - USER=odoo
       - PASSWORD_FILE=/run/secrets/postgresql_password
+      # - PASSWORD=myodoo
+      - PORT=5432
     secrets:
       - postgresql_password
     # labels:
@@ -67,10 +71,8 @@ services:
     #   - traefik.http.routers.https-odoo-websocket.tls.certresolver="letsencrypt"
 
 volumes:
-  papelyt-odoo-web-data:
-  papelyt-odoo-db-data:
-  papelyt-odoo-config:
-  papelyt-odoo-addons:
+  odoo-web-data:
+  odoo-db-data:
 
 
 secrets:
