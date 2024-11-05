@@ -1,17 +1,18 @@
 # Usar la misma versión de la imagen base de Odoo que estás utilizando
-FROM odoo:17.0
+FROM odoo:18.0
 
 # Cambiar al usuario root para instalar paquetes
 USER root
 
-# Actualizar pip y instalar dependencias
+# Copiar el archivo requirements.txt al contenedor
+COPY requirements.txt /tmp/requirements.txt
+
+# Actualizar pip y instalar dependencias desde requirements.txt
 RUN pip3 install --upgrade pip && \
-    pip3 install wheel && \
-    pip3 install setuptools && \
-    pip3 install cryptography==36.0.0 && \
-    pip3 install xades==0.2.4 && \
-    pip3 install xmlsig==0.1.9 && \
-    pip3 install zeep
+    pip3 install -r /tmp/requirements.txt && \
+    rm /tmp/requirements.txt && \
+    rm -rf /root/.cache/pip
+
 
 # Volver al usuario Odoo
 USER odoo
