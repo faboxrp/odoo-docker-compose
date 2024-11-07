@@ -1,0 +1,9 @@
+services:
+
+  odoo-db:
+    image: postgres:16.2 # Cambia la versión de la base de datos en desarrollo
+
+  odoo-web:
+    ports:
+      - "8069:8069" # Exponer puerto para Odoo en desarrollo
+      # - "8072:8072"  # Opcional: Puerto para servicio de websockets/long polling
