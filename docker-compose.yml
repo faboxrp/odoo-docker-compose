@@ -30,22 +30,6 @@ services:
       - PASSWORD=${POSTGRES_PASSWORD}
       - PORT=${PGPORT}
 
-    labels:
-      # Habilitar Traefik para este servicio
-      - "traefik.enable=true"
-
-      # # Configuración del enrutador para la interfaz web
-      # - "traefik.http.routers.odoo.rule=(${ODOO_HOST_RULE})"
-      # - "traefik.http.services.odoo.loadbalancer.server.port=8069"
-      # - "traefik.http.routers.odoo.entrypoints=http,https"
-      # - "traefik.http.routers.odoo.tls.certresolver=letsencrypt"
-
-      # Configuración del enrutador para el WebSocket
-      - "traefik.http.routers.odoo-websocket.rule=(${ODOO_HOST_RULE}) && PathPrefix(`/websocket`)"
-      - "traefik.http.services.odoo-websocket.loadbalancer.server.port=8072"
-      - "traefik.http.routers.odoo-websocket.entrypoints=http,https"
-      - "traefik.http.routers.odoo-websocket.tls.certresolver=letsencrypt"
-
 volumes:
   odoo-web-data:
   odoo-db-data:
