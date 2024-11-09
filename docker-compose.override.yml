@@ -7,3 +7,4 @@ services:
     ports:
       - "8069:8069" # Exponer puerto para Odoo en desarrollo
       # - "8072:8072"  # Opcional: Puerto para servicio de websockets/long polling
+    command: odoo --config /etc/odoo/odoo-dev.conf

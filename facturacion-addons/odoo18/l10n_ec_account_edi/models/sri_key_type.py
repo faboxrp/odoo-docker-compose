@@ -129,13 +129,13 @@ class SriKeyType(models.Model):
         try:
             p12 = pkcs12.load_pkcs12(file_content, self.password.encode())
         except Exception as ex:
-            _logger.warning(tools.ustr(ex))
+            _logger.warning(str(ex))
             raise UserError(
                 _(
                     "Error opening the signature, possibly the signature key has "
                     "been entered incorrectly or the file is not supported. \n%s"
                 )
-                % (tools.ustr(ex))
+                % (str(ex))
             ) from None
         certificate = p12.cert.certificate
         # revisar si el certificado tiene la extension digital_signature activada
@@ -147,7 +147,7 @@ class SriKeyType(models.Model):
             )
             is_digital_signature = extension.value.digital_signature
         except ExtensionNotFound as ex:
-            _logger.debug(tools.ustr(ex))
+            _logger.debug(str(ex))
         if not is_digital_signature:
             # cuando hay mas de un certificado, tomar el certificado correcto
             # este deberia tener entre las extensiones digital_signature = True
@@ -158,7 +158,7 @@ class SriKeyType(models.Model):
                         ExtensionOID.KEY_USAGE
                     )
                 except ExtensionNotFound as ex:
-                    _logger.debug(tools.ustr(ex))
+                    _logger.debug(str(ex))
                 if extension.value.digital_signature:
                     certificate = other_cert.certificate
                     break

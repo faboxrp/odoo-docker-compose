@@ -50,7 +50,8 @@ class AccountMove(models.Model):
         string="Is Ecuadorian Electronic Document", default=False, copy=False
     )
     l10n_ec_legacy_document_date = fields.Date(string="External Document Date")
-    l10n_ec_legacy_document_number = fields.Char(string="External Document Number")
+    l10n_ec_legacy_document_number = fields.Char(
+        string="External Document Number")
     l10n_ec_legacy_document_authorization = fields.Char(
         string="External Authorization Number", size=49
     )
@@ -76,7 +77,8 @@ class AccountMove(models.Model):
                 [
                     *Journal._check_company_domain(company),
                     ("type", "=", journal_type),
-                    ("l10n_ec_is_purchase_liquidation", "=", is_purchase_liquidation),
+                    ("l10n_ec_is_purchase_liquidation",
+                     "=", is_purchase_liquidation),
                 ]
             )
 
@@ -141,7 +143,8 @@ class AccountMove(models.Model):
             )
             if currency_id and currency_id != company.currency_id.id:
                 currency_domain = domain + [("currency_id", "=", currency_id)]
-                journal = self.env["account.journal"].search(currency_domain, limit=1)
+                journal = self.env["account.journal"].search(
+                    currency_domain, limit=1)
 
         if not journal:
             journal = self.env["account.journal"].search(domain, limit=1)
@@ -238,31 +241,30 @@ class AccountMove(models.Model):
         self.ensure_one()
 
         def filter_withholding_taxes(base_line, tax_values):
-            withhold_group_ids = (
-                self.env["account.tax.group"]
-                .search(
-                    [
-                        (
-                            "l10n_ec_type",
-                            "in",
-                            (
-                                "withhold_vat_sale",
-                                "withhold_vat_purchase",
-                                "withhold_income_sale",
-                                "withhold_income_purchase",
-                            ),
-                        )
-                    ]
+            # _logger.info("Tax Values: %s", tax_values)
+            # print("Tax Values: %s" % tax_values, flush=True)
+            withhold_group_ids = self.env["account.tax.group"].search([
+                (
+                    "l10n_ec_type",
+                    "in",
+                    (
+                        "withhold_vat_sale",
+                        "withhold_vat_purchase",
+                        "withhold_income_sale",
+                        "withhold_income_purchase",
+                    ),
                 )
-                .ids
-            )
-            return (
-                tax_values["tax_repartition_line"].tax_id.tax_group_id.id
-                not in withhold_group_ids
-            )
+            ]).ids
+            tax = tax_values.get('tax')
+            if tax:
+                return tax.tax_group_id.id not in withhold_group_ids
+            else:
+                _logger.warning("No 'tax' found in tax_values: %s", tax_values)
+                return True  # Ajusta según la lógica que necesites
 
         taxes_data = self._prepare_edi_tax_details(
             filter_to_apply=exclude_withholding and filter_withholding_taxes or None,
+            # filter_to_apply=filter_withholding_taxes if exclude_withholding else None,
         )
         return taxes_data
 
@@ -386,7 +388,8 @@ class AccountMove(models.Model):
 
     def action_send_and_print(self):
         if any(x._is_l10n_ec_is_purchase_liquidation() for x in self):
-            template = self.env.ref(self._get_mail_template(), raise_if_not_found=False)
+            template = self.env.ref(
+                self._get_mail_template(), raise_if_not_found=False)
             return {
                 "name": _("Send"),
                 "type": "ir.actions.act_window",

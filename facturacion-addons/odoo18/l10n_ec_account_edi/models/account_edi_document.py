@@ -97,18 +97,47 @@ class AccountEdiDocument(models.Model):
 
     @api.model
     def _l10n_ec_prepare_tax_vals_edi(self, tax_data):
-        tax = tax_data["tax"]
+        # _logger.info("Tax Data: %s", tax_data)
+        tax = tax_data.get("tax")
+        if not tax:
+            tax_id = tax_data.get("tax_id")
+            if not tax_id:
+                grouping_key = tax_data.get("grouping_key")
+                if grouping_key:
+                    if isinstance(grouping_key, models.BaseModel):
+                        if grouping_key._name == 'account.tax':
+                            tax = grouping_key
+                        else:
+                            _logger.error(
+                                "El 'grouping_key' es un modelo pero no es 'account.tax': %s", grouping_key._name)
+                            return {}
+                    else:
+                        tax = self.env['account.tax'].browse(grouping_key)
+                else:
+                    _logger.error(
+                        "No se encontró 'tax', 'tax_id' ni 'grouping_key' en tax_data: %s", tax_data)
+                    return {}
+            else:
+                tax = self.env['account.tax'].browse(tax_id)
+        if not tax or not tax.exists():
+            _logger.error(
+                "No se pudo encontrar el registro de impuesto en tax_data: %s", tax_data)
+            return {}
+
         base_amount = tax_data.get("base_amount_currency", 0.0)
         tax_amount = tax_data.get("tax_amount_currency", 0.0)
-        rate = tax.amount
-        tax_vals = {
-            "codigo": tax.tax_group_id.l10n_ec_xml_fe_code,
-            "codigoPorcentaje": tax.l10n_ec_xml_fe_code,
+        tax_group_code = tax.tax_group_id.l10n_ec_xml_fe_code
+        tax_code = tax.l10n_ec_xml_fe_code
+
+        rate = int(tax.amount)
+        tax_name = tax.tax_group_id.l10n_ec_type
+        return {
+            "codigo": tax_group_code,
+            "codigoPorcentaje": tax_code,
             "baseImponible": self._l10n_ec_number_format(abs(base_amount), 6),
             "tarifa": self._l10n_ec_number_format(abs(rate), 6),
             "valor": self._l10n_ec_number_format(abs(tax_amount), 6),
         }
-        return tax_vals
 
     def l10n_ec_header_get_total_with_taxes(self, taxes_data):
         self.ensure_one()
@@ -159,11 +188,11 @@ class AccountEdiDocument(models.Model):
                 _logger.error(
                     "Wrong XML File, access_key: %s, Error: %s",
                     self.l10n_ec_xml_access_key,
-                    tools.ustr(e),
+                    str(e),
                 )
             else:
                 raise UserError(
-                    _("Wrong XML File, Detail: \n%s") % tools.ustr(e)
+                    _("Wrong XML File, Detail: \n%s") % str(e)
                 ) from None
         return True
 
@@ -240,7 +269,7 @@ class AccountEdiDocument(models.Model):
     def _l10n_ec_get_document_type(self):
         document_type = self.move_id.l10n_latam_internal_type
         print("document_type", document_type)
-        _logger.info("document_type", document_type)
+        # _logger.info("document_type: %s", document_type)
         return document_type
 
     def l10n_ec_get_current_document(self):
@@ -354,8 +383,8 @@ class AccountEdiDocument(models.Model):
                 self._l10n_ec_get_info_debit_note(),
             )
         # TODO: agregar logica para demas tipos de documento
-        print("xml_file", xml_file)
-        _logger.info("xml_file", xml_file)
+        # print("xml_file", xml_file)
+        # _logger.info("xml_file: %s", xml_file)
         return xml_file
 
     def _l10n_ec_get_info_additional(self):
@@ -543,8 +572,8 @@ class AccountEdiDocument(models.Model):
                 "can't validate document in %s, claveAcceso %s. ERROR: %s TRACEBACK: %s",
                 str(client_ws),
                 self.l10n_ec_xml_access_key,
-                tools.ustr(e),
-                tools.ustr(traceback.format_exc()),
+                str(e),
+                str(traceback.format_exc()),
             )
         return response
 
@@ -578,12 +607,12 @@ class AccountEdiDocument(models.Model):
                     msj_str = f"{tipo} [{identificador}] {messaje} {additional_info}"
                     msj_list.append(msj_str)
         except Exception as e:
-            msj_list.append(tools.ustr(e))
+            msj_list.append(str(e))
             _logger.info(
                 "can't validate document, clave de acceso %s. ERROR: %s TRACEBACK: %s",
                 self.l10n_ec_xml_access_key,
-                tools.ustr(e),
-                tools.ustr(traceback.format_exc()),
+                str(e),
+                str(traceback.format_exc()),
             )
             ok = False
         return ok, msj_list
@@ -600,7 +629,7 @@ class AccountEdiDocument(models.Model):
         except Exception as e:
             response = False
             _logger.warning(
-                "Error send xml to server %s. ERROR: %s", client_ws, tools.ustr(
+                "Error send xml to server %s. ERROR: %s", client_ws, str(
                     e)
             )
         return response
