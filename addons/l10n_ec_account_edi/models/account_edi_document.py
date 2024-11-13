@@ -67,25 +67,33 @@ class AccountEdiDocument(models.Model):
 
     def _l10n_ec_header_get_document_lines_edi_data(self, taxes_data):
         res = []
-        document_type = self.move_id.l10n_latam_internal_type
+        document_type = self._l10n_ec_get_document_type()
+        # _logger.info(
+        #     "Document Type in _l10n_ec_header_get_document_lines_edi_data: %s", document_type)
         for doc_line in self.move_id.invoice_line_ids.filtered(
-            lambda x: x.display_type == "product"
+            lambda x: x.display_type != "line_section" and x.display_type != "line_note"
         ).sorted("price_subtotal"):
             line_tax_data = taxes_data.get(
                 "tax_details_per_record", {}).get(doc_line)
             if document_type == "invoice":
                 res.append(
                     doc_line.l10n_ec_get_invoice_edi_data(line_tax_data))
-            if document_type == "purchase_liquidation":
+            elif document_type == "purchase_liquidation":
                 res.append(
                     doc_line.l10n_ec_get_invoice_edi_data(line_tax_data))
-            if document_type == "credit_note":
+            elif document_type == "credit_note":
                 res.append(
                     doc_line.l10n_ec_get_credit_note_edi_data(line_tax_data))
-            if document_type == "debit_note":
+            elif document_type == "debit_note":
                 res.append(
                     doc_line.l10n_ec_get_debit_note_edi_data(line_tax_data))
-            # TODO: agregar logica para demas tipos de documento
+            else:
+                _logger.error(
+                    "Tipo de documento desconocido: %s", document_type)
+                raise UserError(
+                    _("Tipo de documento desconocido para generar los detalles del documento: %s") % document_type
+                )
+                # TODO: agregar logica para demas tipos de documento
         return res
 
     def _l10n_ec_compute_amount_discount(self):
@@ -97,28 +105,21 @@ class AccountEdiDocument(models.Model):
 
     @api.model
     def _l10n_ec_prepare_tax_vals_edi(self, tax_data):
-        # _logger.info("Tax Data: %s", tax_data)
-        tax = tax_data.get("tax")
-        if not tax:
-            tax_id = tax_data.get("tax_id")
-            if not tax_id:
-                grouping_key = tax_data.get("grouping_key")
-                if grouping_key:
-                    if isinstance(grouping_key, models.BaseModel):
-                        if grouping_key._name == 'account.tax':
-                            tax = grouping_key
-                        else:
-                            _logger.error(
-                                "El 'grouping_key' es un modelo pero no es 'account.tax': %s", grouping_key._name)
-                            return {}
-                    else:
-                        tax = self.env['account.tax'].browse(grouping_key)
-                else:
-                    _logger.error(
-                        "No se encontró 'tax', 'tax_id' ni 'grouping_key' en tax_data: %s", tax_data)
-                    return {}
+        grouping_key = tax_data.get("grouping_key")
+        tax = None
+
+        if grouping_key:
+            # Asumimos directamente que `grouping_key` es un ID válido o un registro de `account.tax`
+            if isinstance(grouping_key, models.BaseModel) and grouping_key._name == 'account.tax':
+                tax = grouping_key
             else:
-                tax = self.env['account.tax'].browse(tax_id)
+                tax = self.env['account.tax'].browse(grouping_key)
+        else:
+            _logger.error(
+                "No se encontró 'grouping_key' en tax_data: %s", tax_data)
+            return {}
+
+        # Validar si se encontró el impuesto
         if not tax or not tax.exists():
             _logger.error(
                 "No se pudo encontrar el registro de impuesto en tax_data: %s", tax_data)
@@ -131,6 +132,7 @@ class AccountEdiDocument(models.Model):
 
         rate = int(tax.amount)
         tax_name = tax.tax_group_id.l10n_ec_type
+
         return {
             "codigo": tax_group_code,
             "codigoPorcentaje": tax_code,
@@ -201,7 +203,7 @@ class AccountEdiDocument(models.Model):
         base_path = path.join("l10n_ec_account_edi", "data", "xsd")
         company = self.move_id.company_id or self.env.company
         document_type = self._l10n_ec_get_document_type()
-        if document_type == "invoice":
+        if document_type in ["invoice", "out_invoice"]:
             filename = f"factura_V{company.l10n_ec_invoice_version}"
         if document_type == "purchase_liquidation":
             filename = f"LiquidacionCompra_V{company.l10n_ec_liquidation_version}"
@@ -268,8 +270,25 @@ class AccountEdiDocument(models.Model):
 
     def _l10n_ec_get_document_type(self):
         document_type = self.move_id.l10n_latam_internal_type
-        print("document_type", document_type)
-        # _logger.info("document_type: %s", document_type)
+        if not document_type:
+            move_type = self.move_id.move_type
+            # _logger.warning(
+            # "El campo 'l10n_latam_internal_type' es False, usando 'move_type': %s", move_type)
+
+            # Mapear move_type a document_type
+            move_type_mapping = {
+                'out_invoice': 'invoice',
+                'out_refund': 'credit_note',
+                'in_invoice': 'purchase_liquidation',
+                'in_refund': 'credit_note',
+                'entry': 'entry',
+                'out_receipt': 'invoice',
+                'in_receipt': 'purchase_liquidation',
+            }
+            document_type = move_type_mapping.get(move_type, move_type)
+        else:
+            _logger.info(
+                "Tipo de documento obtenido de 'l10n_latam_internal_type': %s", document_type)
         return document_type
 
     def l10n_ec_get_current_document(self):
@@ -367,24 +386,31 @@ class AccountEdiDocument(models.Model):
             xml_file = ViewModel._render_template(
                 "l10n_ec_account_edi.ec_edi_invoice", self._l10n_ec_get_info_invoice()
             )
-        if document_type == "purchase_liquidation":
+        elif document_type == "purchase_liquidation":
             xml_file = ViewModel._render_template(
                 "l10n_ec_account_edi.ec_edi_liquidation",
                 self._l10n_ec_get_info_liquidation(),
             )
-        if document_type == "credit_note":
+        elif document_type == "credit_note":
             xml_file = ViewModel._render_template(
                 "l10n_ec_account_edi.ec_edi_credit_note",
                 self._l10n_ec_get_info_credit_note(),
             )
-        if document_type == "debit_note":
+        elif document_type == "debit_note":
             xml_file = ViewModel._render_template(
                 "l10n_ec_account_edi.ec_edi_debit_note",
                 self._l10n_ec_get_info_debit_note(),
             )
+        else:
+            _logger.error("Tipo de documento desconocido: %s", document_type)
+            raise UserError(
+                _("Tipo de documento desconocido para la generación del XML: %s") % document_type
+            )
+
         # TODO: agregar logica para demas tipos de documento
         # print("xml_file", xml_file)
         # _logger.info("xml_file: %s", xml_file)
+
         return xml_file
 
     def _l10n_ec_get_info_additional(self):
