@@ -12,9 +12,7 @@ services:
       - odoo-db-data:/var/lib/postgresql/data/pgdata
 
   odoo-web:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: odoo:17.0
 
     depends_on:
       - odoo-db

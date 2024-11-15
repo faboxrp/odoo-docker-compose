@@ -1,7 +1,0 @@
-wheel
-setuptools
-cryptography
-xades
-xmlsig
-zeep
-
